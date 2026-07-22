@@ -13,8 +13,8 @@
 
 :root {
   --bg: #15151a; --bg-raised: #1c1c22; --bg-sidebar: #131317;
-  --border: #2a2a31; --text: #f0ede7; --text-muted: #8d8a92;
-  --accent: #FFC107; --accent-ink: #1a1a1a; --code-bg: #24242b;
+  --border: #45454c; --text: #f0ede7; --text-muted: #8d8a92;
+  --accent: #FFC107; --accent-ink: #1a1a1a; --code-bg: #362f26;
   --max-w: 1060px; --max-w-narrow: 720px;
 }
 * { box-sizing: border-box; }
@@ -68,12 +68,24 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .demo-toolbar { display: flex; align-items: center; gap: 9px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .demo-menu-icon { width: 16px; height: 16px; color: var(--text-muted); flex-shrink: 0; }
 .demo-menu-icon svg { width: 100%; height: 100%; stroke: currentColor; fill: none; }
-.demo-title { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo-title { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: none; background: transparent; font-family: inherit; outline: none; padding: 0; }
 .demo-toolbar-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .demo-icon-btn { width: 16px; height: 16px; color: var(--text-muted); cursor: pointer; flex-shrink: 0; }
 .demo-icon-btn:hover { color: var(--text); }
 .demo-icon-btn svg { width: 100%; height: 100%; stroke: currentColor; fill: none; }
 .demo-icon-btn.demo-danger:hover { color: #ef5350; }
+.demo-icon-btn.demo-danger.confirming {
+  width: auto;
+  height: auto;
+  padding: 3px 9px;
+  background: #ef5350;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.demo-icon-btn.demo-danger.confirming:hover { color: #fff; }
 .demo-mode { display: flex; align-items: center; gap: 5px; font-size: 11.5px; }
 .demo-mode button { border: none; background: transparent; padding: 0; color: #888; cursor: pointer; font-family: inherit; font-size: 11.5px; }
 .demo-mode button.active { color: #fff; font-weight: 600; }
@@ -185,14 +197,14 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
         <aside class="demo-sidebar">
           <div class="demo-sidebar-header">
             <div class="demo-search">Filter names&hellip;</div>
-            <div class="demo-newbtn">+</div>
+            <div class="demo-newbtn" id="demo-newbtn">+</div>
           </div>
           <ul class="demo-note-list" id="demo-note-list"></ul>
         </aside>
         <div class="demo-main">
           <div class="demo-toolbar">
             <div class="demo-menu-icon"><svg viewBox="0 0 20 20" stroke-width="1.7" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg></div>
-            <div class="demo-title" id="demo-title">Try it out</div>
+            <input class="demo-title" id="demo-title" value="Try it out" />
             <div class="demo-toolbar-right">
               <div class="demo-icon-btn" id="demo-undo" title="Undo"><svg viewBox="0 0 20 20" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5 2 9l4 4M2 9h9a5 5 0 0 1 0 10h-1"/></svg></div>
               <div class="demo-icon-btn" id="demo-redo" title="Redo"><svg viewBox="0 0 20 20" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5l4 4-4 4M18 9H9a5 5 0 0 0 0 10h1"/></svg></div>
@@ -211,7 +223,7 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
           </div>
         </div>
       </div>
-      <p class="hero-caption"><strong>This is not a screenshot.</strong> It's the real UI, live &mdash; switch notes in the sidebar, use the full toolbar, toggle Writer/Markdown, even delete a note.</p>
+      <p class="hero-caption"><strong>This is not a screenshot.</strong> It's the real UI, live &mdash; create a note, switch between them, use the full toolbar, toggle Writer/Markdown, even delete one. (This is a demo of a few core features, not the full app &mdash; search, import/export, and more are only in the real thing.)</p>
     </div>
   </div>
 </header>
@@ -238,6 +250,10 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
     <div class="feature-row">
       <div class="feature-icon">&#9998;</div>
       <div><h3>Full GFM support</h3><p>Tables, footnotes, task lists, and GitHub-style callouts &mdash; the whole spec, not a subset.</p></div>
+    </div>
+    <div class="feature-row">
+      <div class="feature-icon">&#8855;</div>
+      <div><h3>Zero-dependency editor</h3><p>A small hand-written markdown converter, not a third-party library loaded from a CDN &mdash; nothing external to version-mismatch or break.</p></div>
     </div>
     <div class="feature-row">
       <div class="feature-icon">&#9670;</div>
@@ -375,7 +391,13 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
 
     function closeListsTo(indent) {
       while (stack.length && stack[stack.length - 1].indent >= indent) {
-        html += "</" + stack.pop().type + ">";
+        const frame = stack.pop();
+        if (frame.liOpen) html += "</li>";
+        html += "</" + frame.type + ">";
+        if (stack.length && stack[stack.length - 1].liOpen) {
+          html += "</li>";
+          stack[stack.length - 1].liOpen = false;
+        }
       }
     }
     function closeAllLists() { closeListsTo(-1); }
@@ -461,20 +483,25 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
 
         closeListsTo(indent + 1);
         if (!stack.length || stack[stack.length - 1].indent < indent) {
-          stack.push({ indent: indent, type: type });
+          stack.push({ indent: indent, type: type, liOpen: false });
           html += "<" + type + (isCheck ? ' class="task-list"' : "") + ">";
         } else if (stack[stack.length - 1].indent === indent && stack[stack.length - 1].type !== type) {
-          html += "</" + stack.pop().type + ">";
-          stack.push({ indent: indent, type: type });
+          var old = stack.pop();
+          if (old.liOpen) html += "</li>";
+          html += "</" + old.type + ">";
+          stack.push({ indent: indent, type: type, liOpen: false });
           html += "<" + type + (isCheck ? ' class="task-list"' : "") + ">";
         }
 
+        var top = stack[stack.length - 1];
+        if (top.liOpen) html += "</li>";
         if (isCheck) {
           var checked = /x/i.test(checkMatch[1]);
-          html += "<li><label><input type=\"checkbox\"" + (checked ? " checked" : "") + "> " + inlineMdToHtml(checkMatch[2]) + "</label></li>";
+          html += "<li><label><input type=\"checkbox\"" + (checked ? " checked" : "") + "> " + inlineMdToHtml(checkMatch[2]) + "</label>";
         } else {
-          html += "<li>" + inlineMdToHtml(content) + "</li>";
+          html += "<li>" + inlineMdToHtml(content);
         }
+        top.liOpen = true;
         i++;
         continue;
       }
@@ -743,7 +770,7 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
   function openNote(title) {
     if (!notes.hasOwnProperty(title)) return;
     current = title;
-    titleEl.textContent = title;
+    titleEl.value = title;
     if (mode === "write") editor.innerHTML = mdToHtml(notes[title]);
     else raw.value = notes[title];
     renderList();
@@ -839,18 +866,53 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
     else { editor.focus(); document.execCommand("redo"); }
   });
 
-  el("demo-delete").addEventListener("click", function () {
-    if (!confirm('Delete "' + current + '"? (This only affects this demo, nothing real.)')) return;
+  var DEMO_DELETE_ICON = el("demo-delete").innerHTML;
+  var deleteConfirming = false;
+  var deleteConfirmTimeout = null;
+
+  function resetDemoDeleteButton() {
+    deleteConfirming = false;
+    clearTimeout(deleteConfirmTimeout);
+    el("demo-delete").innerHTML = DEMO_DELETE_ICON;
+    el("demo-delete").classList.remove("confirming");
+  }
+
+  document.addEventListener("click", function (e) {
+    if (deleteConfirming && !el("demo-delete").contains(e.target)) resetDemoDeleteButton();
+  });
+
+  el("demo-delete").addEventListener("click", function (e) {
+    if (!deleteConfirming) {
+      e.stopPropagation();
+      deleteConfirming = true;
+      el("demo-delete").textContent = "Confirm";
+      el("demo-delete").classList.add("confirming");
+      clearTimeout(deleteConfirmTimeout);
+      deleteConfirmTimeout = setTimeout(resetDemoDeleteButton, 4000);
+      return;
+    }
+    resetDemoDeleteButton();
     delete notes[current];
     order = order.filter(function (t) { return t !== current; });
     if (order.length) {
       openNote(order[0]);
     } else {
-      titleEl.textContent = "No notes left";
+      titleEl.value = "No notes left";
       editor.innerHTML = "<p><em>All demo notes deleted — reload the page to reset the demo.</em></p>";
       raw.value = "";
       renderList();
     }
+  });
+
+  el("demo-newbtn").addEventListener("click", function () {
+    var title = "Untitled";
+    var n = 1;
+    while (order.indexOf(title) !== -1) { n++; title = "Untitled " + n; }
+    notes[title] = "";
+    order.unshift(title);
+    openNote(title);
+    titleEl.focus();
+    titleEl.select();
   });
 
   btnWrite.addEventListener("click", function () {
