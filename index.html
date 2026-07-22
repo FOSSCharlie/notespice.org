@@ -651,6 +651,62 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
   }
   buildFormatBar();
 
+  // Wraps the current selection in `tagName`. If nothing is selected,
+  // inserts an empty element (a zero-width space, invisible) with the
+  // cursor placed inside it, so typing continues in that format —
+  // rather than inserting visible placeholder text the person then has
+  // to notice, select, and delete.
+  function wrapSelectionInline(tagName) {
+    var s = window.getSelection();
+    if (!s.rangeCount) return;
+    var r = s.getRangeAt(0);
+    var elNode = document.createElement(tagName);
+    if (r.collapsed) {
+      elNode.appendChild(document.createTextNode("\u200B"));
+      r.insertNode(elNode);
+      var nr = document.createRange();
+      nr.setStart(elNode.firstChild, 1);
+      nr.collapse(true);
+      s.removeAllRanges();
+      s.addRange(nr);
+    } else {
+      var contents = r.extractContents();
+      elNode.appendChild(contents);
+      r.insertNode(elNode);
+      var nr2 = document.createRange();
+      nr2.setStartAfter(elNode);
+      nr2.collapse(true);
+      s.removeAllRanges();
+      s.addRange(nr2);
+    }
+  }
+
+  // Same idea for a checklist item: no placeholder "task" text, cursor
+  // lands inside the label ready to type.
+  function insertChecklistItem(labelText) {
+    var s = window.getSelection();
+    if (!s.rangeCount) return;
+    var r = s.getRangeAt(0);
+    var ul = document.createElement("ul");
+    ul.className = "task-list";
+    var li = document.createElement("li");
+    var label = document.createElement("label");
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    label.appendChild(cb);
+    var textNode = document.createTextNode(" " + (labelText || ""));
+    label.appendChild(textNode);
+    li.appendChild(label);
+    ul.appendChild(li);
+    r.deleteContents();
+    r.insertNode(ul);
+    var nr = document.createRange();
+    nr.setStart(textNode, textNode.textContent.length);
+    nr.collapse(true);
+    s.removeAllRanges();
+    s.addRange(nr);
+  }
+
   function nextFootnoteNumber() {
     var md = currentMarkdown();
     var max = 0;
@@ -716,11 +772,15 @@ footer .credit { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
     else if (cmd === "footnote") {
       var n = nextFootnoteNumber();
       document.execCommand("insertHTML", false, '<sup class="footnote-ref" data-fn="' + n + '">' + n + "</sup>");
-      editor.innerHTML += "<p>[^" + n + "]: </p>";
+      var fnP = document.createElement("p");
+      fnP.textContent = "[^" + n + "]: ";
+      editor.appendChild(fnP);
     } else if (cmd === "checklist") {
-      document.execCommand("insertHTML", false, '<ul class="task-list"><li><label><input type="checkbox"> ' + escapeHtml(selectedText || "task") + "</label></li></ul>");
+      editor.focus();
+      insertChecklistItem(selectedText);
     } else if (cmd === "code") {
-      document.execCommand("insertHTML", false, "<code>" + escapeHtml(selectedText || "code") + "</code>");
+      editor.focus();
+      wrapSelectionInline("code");
     } else if (cmd === "link") {
       var url = prompt("Link URL:", "https://");
       if (!url) return;
